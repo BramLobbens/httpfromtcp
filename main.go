@@ -14,27 +14,37 @@ func main() {
 		log.Fatal(err)
 	}
 
+receivedLines := getLinesChannel(file)
+	for line := range receivedLines {
+		fmt.Printf("read: %s\n", line)
+	}
+}
+
+func getLinesChannel(f io.ReadCloser) <-chan string {
+
+	const BYTE_SIZE int = 8
+	ch := make(chan string) //output channel
 	currentLine := ""
 
+go func() {
 	for {
-		data := make([]byte, 8)
-		count, err := file.Read(data)
+		data := make([]byte, BYTE_SIZE)
+		count, err := f.Read(data)
 
-		currentData := string(data[:count])
-		currentLine += currentData
-
+		currentLine += string(data[:count])
+		
 		if err == io.EOF {
 			if len(currentLine) > 0 {
-				fmt.Printf("read: %s\n", currentLine)
+				ch <- currentLine
 			}
-			os.Exit(0)
+			close(ch)
 		}
 
 		if err != nil {
 			log.Fatal(err)
 		}
 
-		if count == 8 {
+		if count == BYTE_SIZE {
 			lineParts := strings.Split(currentLine, "\n")
 			partsLength := len(lineParts)
 
@@ -43,10 +53,15 @@ func main() {
 			}
 
 			for _, part := range lineParts[:len(lineParts)-1] {
-				fmt.Printf("read: %s", part)
+				ch <- part
 			}
-			fmt.Println()
+			
 			currentLine = lineParts[len(lineParts)-1]
 		}
 	}
+}()
+
+	return ch
+}
+
 }
