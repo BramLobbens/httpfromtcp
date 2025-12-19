@@ -32,17 +32,15 @@ func main() {
 	}
 }
 
-func getLinesChannel(f net.Conn) <-chan string {
+func getLinesChannel(f io.ReadCloser) <-chan string {
 
-	const BYTE_SIZE int = 8
-	ch := make(chan string) //output channel
+	ch := make(chan string)
 	currentLine := ""
 
 	go func() {
 		for {
-			data := make([]byte, BYTE_SIZE)
+			data := make([]byte, 8)
 			count, err := f.Read(data)
-
 			currentLine += string(data[:count])
 
 			if err == io.EOF {
@@ -56,7 +54,7 @@ func getLinesChannel(f net.Conn) <-chan string {
 				log.Fatal(err)
 			}
 
-			if count == BYTE_SIZE {
+			if count == 8 {
 				lineParts := strings.Split(currentLine, "\n")
 				partsLength := len(lineParts)
 
