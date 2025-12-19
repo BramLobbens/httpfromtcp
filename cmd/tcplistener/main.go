@@ -21,12 +21,14 @@ func main() {
 		if err != nil {
 			log.Fatal(err)
 		}
-		fmt.Println("CONNECTION ESTABLISHED")
+		fmt.Println("--CONNECTION ESTABLISHED--")
 
 		receivedLines := getLinesChannel(conn)
 		for line := range receivedLines {
-			fmt.Printf("read: %s\n", line)
+			fmt.Printf("%s\n", line)
 		}
+
+		fmt.Println("--CONNECTION CLOSED--")
 	}
 }
 
