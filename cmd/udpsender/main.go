@@ -9,7 +9,7 @@ import (
 )
 
 func main() {
-	conn := setupUDPConnection("42069")
+	conn := setupUDPConnection("localhost:42069")
 	defer conn.Close()
 	reader := bufio.NewReader(os.Stdin)
 	var bear rune = '🐻'
@@ -26,8 +26,8 @@ func main() {
 	}
 }
 
-func setupUDPConnection(port string) *net.UDPConn {
-	udpAddr, err := net.ResolveUDPAddr("udp", "localhost:"+port)
+func setupUDPConnection(address string) *net.UDPConn {
+	udpAddr, err := net.ResolveUDPAddr("udp", address)
 	if err != nil {
 		log.Fatal(err.Error())
 	}
