@@ -28,4 +28,8 @@ func TestRequestLineParse(t *testing.T) {
 	// Test: Invalid number of parts in request line
 	_, err = RequestFromReader(strings.NewReader("/coffee HTTP/1.1\r\nHost: localhost:42069\r\nUser-Agent: curl/8.14.0\r\nAccept: */*\r\n\r\n"))
 	require.Error(t, err)
+
+	// Test: Invalid method casing
+	_, err = RequestFromReader(strings.NewReader("get /coffee HTTP/1.1\r\nHost: localhost:42069\r\nUser-Agent: curl/8.14.0\r\nAccept: */*\r\n\r\n"))
+	require.Error(t, err)
 }
