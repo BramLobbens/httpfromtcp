@@ -10,7 +10,8 @@ import (
 
 type requestState int
 
-const _bufferSize = 8
+const crlf = "\r\n"
+const bufferSize = 8
 
 const (
 	Initialized requestState = iota // 0
@@ -31,18 +32,18 @@ type RequestLine struct {
 func RequestFromReader(reader io.Reader) (*Request, error) {
 	req := Request{}
 	req.State = Initialized
-	buffer := make([]byte, _bufferSize, _bufferSize)
+	buffer := make([]byte, bufferSize, bufferSize)
 	readToIndex := 0
-	for req.State == Initialized {
-		n, err := reader.Read(buffer[readToIndex:])
-		if n > 0 {
+
+	for req.State != Done {
+		numBytesRead, err := reader.Read(buffer[readToIndex:])
+		if numBytesRead > 0 {
 			// always process the n > 0 bytes returned before considering the error err
-			// 1. parse
-			n, err := req.parse(buffer) // shadow n to parsed bytes count
-			if n > 0 {
+			numBytesParsed, err := req.parse(buffer[:readToIndex])
+			if numBytesParsed > 0 {
 				tmpSlice := make([]byte, readToIndex, readToIndex)
 				copy(tmpSlice, buffer)
-				readToIndex -= n
+				readToIndex -= numBytesParsed
 			}
 			if err != nil {
 				return &req, err
@@ -56,11 +57,11 @@ func RequestFromReader(reader io.Reader) (*Request, error) {
 		}
 
 		if readToIndex == len(buffer) {
-			buffer = slices.Grow(buffer, _bufferSize*2) // grow the buffer capacity
-			buffer = buffer[:cap(buffer)]               // set length to full capacity (reader only reads len(p)
+			buffer = slices.Grow(buffer, bufferSize*2) // grow the buffer capacity
+			buffer = buffer[:cap(buffer)]              // set length to full capacity (reader only reads len(p)
 		}
 
-		readToIndex += n
+		readToIndex += numBytesRead
 	}
 	return &req, nil
 }
@@ -84,7 +85,7 @@ func (r *Request) parse(data []byte) (int, error) {
 
 func (req *Request) parseRequestLine(data []byte) (int, error) {
 	// split the request on the first occurrence of "\r\n" if found
-	firstLine, _, found := bytes.Cut(data, []byte("\r\n"))
+	firstLine, _, found := bytes.Cut(data, []byte(crlf))
 	numOfBytes := len(firstLine)
 	// terminal \r\n not yet in chunk return with initialized state
 	if !found {
