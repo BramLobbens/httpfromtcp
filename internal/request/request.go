@@ -83,7 +83,7 @@ func (r *Request) parse(data []byte) (int, error) {
 	return 0, fmt.Errorf("error: unknown state")
 }
 
-func (req *Request) parseRequestLine(data []byte) (int, error) {
+func (r *Request) parseRequestLine(data []byte) (int, error) {
 	// split the request on the first occurrence of "\r\n" if found
 	firstLine, _, found := bytes.Cut(data, []byte(crlf))
 	numOfBytes := len(firstLine)
@@ -100,7 +100,7 @@ func (req *Request) parseRequestLine(data []byte) (int, error) {
 		)
 	}
 
-	if err := req.RequestLine.parseParts(parts); err != nil {
+	if err := r.RequestLine.parseParts(parts); err != nil {
 		return numOfBytes, err
 	}
 
