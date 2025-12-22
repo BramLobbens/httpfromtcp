@@ -63,11 +63,14 @@ func (h Headers) Parse(data []byte) (n int, done bool, err error) {
 			return numBytesParsed, false, fmt.Errorf("invalid token in field-name: %s", key)
 		}
 
-		if _, ok := h[key]; ok {
-			return numBytesParsed, false, fmt.Errorf("key-value pair already exists: %+v", h[key])
+		if keyVal, ok := h[key]; ok {
+			// multiple values in key concatenate into a single string, separated by a comma
+			newVal := strings.Join(append(strings.Split(keyVal, ", "), val), ", ")
+			h[key] = newVal
+		} else {
+			h[key] = val
 		}
 
-		h[key] = val
 		numBytesParsed += len(line) + len(crlf)
 	}
 
@@ -75,8 +78,8 @@ func (h Headers) Parse(data []byte) (n int, done bool, err error) {
 }
 
 func isFieldNameValid(fieldName string) bool {
-	isValidToken := func(r rune) bool {
+	isTokenInvalid := func(r rune) bool {
 		return !isTokenChar[r]
 	}
-	return len(fieldName) < 1 || strings.ContainsFunc(fieldName, isValidToken)
+	return len(fieldName) >= 1 && !strings.ContainsFunc(fieldName, isTokenInvalid)
 }
