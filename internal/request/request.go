@@ -2,25 +2,29 @@ package request
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"slices"
 	"strings"
+
+	"github.com/BramLobbens/httpfromtcp/internal/headers"
 )
+
+const bufferSize = 8
 
 type requestState int
 
-const crlf = "\r\n"
-const bufferSize = 8
-
 const (
-	Initialized requestState = iota // 0
-	Done                            // 1
+	requestStateInitialized    requestState = iota // 0
+	requestStateDone                               // 1
+	requestStateParsingHeaders                     // 3
 )
 
 type Request struct {
 	RequestLine RequestLine
-	State       requestState
+	Headers     headers.Headers
+	state       requestState
 }
 
 type RequestLine struct {
@@ -30,63 +34,91 @@ type RequestLine struct {
 }
 
 func RequestFromReader(reader io.Reader) (*Request, error) {
-	req := Request{}
-	req.State = Initialized
+	req := &Request{
+		state:   requestStateInitialized,
+		Headers: headers.NewHeaders(),
+	}
 	buffer := make([]byte, bufferSize, bufferSize)
 	readToIndex := 0
 
-	for req.State != Done {
-		numBytesRead, err := reader.Read(buffer[readToIndex:])
+	for req.state != requestStateDone {
+		numBytesRead, err := reader.Read(buffer[len(buffer):cap(buffer)])
+		readToIndex += numBytesRead
 		if numBytesRead > 0 {
 			// always process the n > 0 bytes returned before considering the error err
 			numBytesParsed, err := req.parse(buffer[:readToIndex])
 			if numBytesParsed > 0 {
-				tmpSlice := make([]byte, readToIndex, readToIndex)
-				copy(tmpSlice, buffer)
+				copy(buffer, buffer[numBytesParsed:readToIndex])
 				readToIndex -= numBytesParsed
+				buffer = buffer[:readToIndex]
 			}
 			if err != nil {
-				return &req, err
+				return req, err
 			}
 		}
 		if err != nil {
-			if err == io.EOF {
-				req.State = Done // end of stream or data
+			if errors.Is(err, io.EOF) {
+				req.state = requestStateDone // end of stream or data
+				break
 			}
-			return &req, err
+			return nil, err
 		}
 
-		if readToIndex == len(buffer) {
-			buffer = slices.Grow(buffer, bufferSize*2) // grow the buffer capacity
-			buffer = buffer[:cap(buffer)]              // set length to full capacity (reader only reads len(p)
-		}
+		if cap(buffer)-len(buffer) < bufferSize {
+			buffer = slices.Grow(buffer, cap(buffer)*2) // grow the buffer capacity
 
-		readToIndex += numBytesRead
+		}
+		// set length to full capacity (reader only reads len(p)
+		buffer = buffer[:readToIndex] // shrink slice to valid bytes
 	}
-	return &req, nil
+	return req, nil
 }
 
 func (r *Request) parse(data []byte) (int, error) {
-	switch r.State {
-	case Initialized:
+	totalBytesParsed := 0
+	//for r.State != requestStateDone {
+	numBytesParsed, err := r.parseSingle(data[totalBytesParsed:])
+	if err != nil {
+		return numBytesParsed, err
+	}
+	totalBytesParsed += numBytesParsed
+	//}
+	return totalBytesParsed, nil
+}
+
+func (r *Request) parseSingle(data []byte) (int, error) {
+	switch r.state {
+	case requestStateInitialized:
 		numOfBytes, err := r.parseRequestLine(data)
 		if err != nil {
 			return numOfBytes, err
 		}
 		if numOfBytes != 0 {
-			r.State = Done
+			// Finalised request line - set to parse headers next
+			r.state = requestStateParsingHeaders
 		}
 		return numOfBytes, nil
-	case Done:
+	case requestStateParsingHeaders:
+		n, done, err := r.Headers.Parse(data)
+		if err != nil {
+			return 0, err
+		}
+		if done {
+			r.state = requestStateDone
+			return n, nil
+		}
+		return n, nil
+	case requestStateDone:
 		return 0, fmt.Errorf("error: trying to read data in a done state")
 	}
 	return 0, fmt.Errorf("error: unknown state")
 }
 
 func (r *Request) parseRequestLine(data []byte) (int, error) {
+	crlf := []byte("\r\n")
 	// split the request on the first occurrence of "\r\n" if found
-	firstLine, _, found := bytes.Cut(data, []byte(crlf))
-	numOfBytes := len(firstLine)
+	firstLine, _, found := bytes.Cut(data, crlf)
+	numOfBytes := len(firstLine) + len(crlf)
 	// terminal \r\n not yet in chunk return with initialized state
 	if !found {
 		return 0, nil
@@ -100,14 +132,14 @@ func (r *Request) parseRequestLine(data []byte) (int, error) {
 		)
 	}
 
-	if err := r.RequestLine.parseParts(parts); err != nil {
+	if err := r.RequestLine.validateAndSetRequestLineParts(parts); err != nil {
 		return numOfBytes, err
 	}
 
 	return numOfBytes, nil
 }
 
-func (rl *RequestLine) parseParts(parts []string) error {
+func (rl *RequestLine) validateAndSetRequestLineParts(parts []string) error {
 	// Method
 	method := parts[0]
 	if method != strings.ToUpper(method) {

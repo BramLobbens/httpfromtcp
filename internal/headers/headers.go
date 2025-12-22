@@ -49,7 +49,8 @@ func (h Headers) Parse(data []byte) (n int, done bool, err error) {
 
 		parts := bytes.SplitN(line, []byte(":"), 2)
 		if len(parts) != 2 {
-			return numBytesParsed, false, fmt.Errorf("malformed header: %s", string(line))
+			// incomplete or malformed data - retry
+			return numBytesParsed, false, nil
 		}
 
 		if s := strings.TrimRight(string(parts[0]), " "); len(s) < len(parts[0]) {
