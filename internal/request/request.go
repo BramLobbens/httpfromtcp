@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"log"
+	"slices"
 	"strings"
 )
 
@@ -31,57 +31,55 @@ type RequestLine struct {
 func RequestFromReader(reader io.Reader) (*Request, error) {
 	req := Request{}
 	req.State = Initialized
-	buffer := make([]byte, _bufferSize)
-	var bufferCopy []byte
+	buffer := make([]byte, _bufferSize, _bufferSize)
 	readToIndex := 0
-	for {
-		if req.State == Done {
-			return &req, nil
+	for req.State == Initialized {
+		n, err := reader.Read(buffer[readToIndex:])
+		if n > 0 {
+			// always process the n > 0 bytes returned before considering the error err
+			// 1. parse
+			n, err := req.parse(buffer) // shadow n to parsed bytes count
+			if n > 0 {
+				tmpSlice := make([]byte, readToIndex, readToIndex)
+				copy(tmpSlice, buffer)
+				readToIndex -= n
+			}
+			if err != nil {
+				return &req, err
+			}
 		}
-		i, err := io.ReadAtLeast(reader, buffer, _bufferSize)
 		if err != nil {
 			if err == io.EOF {
-				req.State = Done
-				break
+				req.State = Done // end of stream or data
 			}
-			log.Fatal(err)
+			return &req, err
 		}
-		readToIndex += i // i bytes read from reader
 
-		// to fix logic regarding copying to data out of the buffer
-		// and increasing the slice to be parsed with the copied read data
-		if i == _bufferSize { // buffer fully read
-			bufferCopy = make([]byte, len(buffer)*2)
-			copy(bufferCopy, buffer)
+		if readToIndex == len(buffer) {
+			buffer = slices.Grow(buffer, _bufferSize*2) // grow the buffer capacity
+			buffer = buffer[:cap(buffer)]               // set length to full capacity (reader only reads len(p)
 		}
-		data := bufferCopy[:readToIndex]
-		n, err := req.parse(data)
-		if err != nil {
-			log.Fatal(err)
-		}
-		if n != 0 { // succesfully parsed line
-			copy(bufferCopy, buffer) // Remove the data that was parsed successfully
-			readToIndex -= n         // n bytes parsed in buffer, i - n left
-		}
+
+		readToIndex += n
 	}
 	return &req, nil
 }
 
 func (r *Request) parse(data []byte) (int, error) {
-	if r.State == Initialized {
+	switch r.State {
+	case Initialized:
 		numOfBytes, err := r.parseRequestLine(data)
 		if err != nil {
-			log.Fatal(err)
+			return numOfBytes, err
 		}
 		if numOfBytes != 0 {
 			r.State = Done
 		}
 		return numOfBytes, nil
-	} else if r.State == Done {
-		fmt.Errorf("error: trying to read data in a done state")
+	case Done:
+		return 0, fmt.Errorf("error: trying to read data in a done state")
 	}
-	fmt.Errorf("error: unknown state")
-	return 0, nil
+	return 0, fmt.Errorf("error: unknown state")
 }
 
 func (req *Request) parseRequestLine(data []byte) (int, error) {
@@ -93,7 +91,7 @@ func (req *Request) parseRequestLine(data []byte) (int, error) {
 		return 0, nil
 	}
 	// split the request line into its parts separated by space
-	parts := strings.Fields(string(data)) // Fields is equal to Split on " "
+	parts := strings.Fields(string(firstLine)) // Fields is equal to Split on " "
 	if n := len(parts); n != 3 {
 		return numOfBytes, fmt.Errorf(
 			"invalid number of parts in requestline: %d",
