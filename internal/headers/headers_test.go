@@ -7,6 +7,24 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestIncompleteHeader(t *testing.T) {
+	headers := NewHeaders()
+	data := []byte("Host: incomplete")
+	n, done, err := headers.Parse(data)
+	require.NoError(t, err)
+	assert.Equal(t, 0, n)
+	assert.False(t, done)
+}
+
+func TestEndOfDataReached(t *testing.T) {
+	headers := NewHeaders()
+	data := []byte("\r\n\r\nsomenewdata")
+	n, done, err := headers.Parse(data)
+	require.NoError(t, err)
+	assert.Equal(t, 0, n)
+	assert.True(t, done)
+}
+
 func TestInvalid(t *testing.T) {
 	headers := NewHeaders()
 	data := []byte("       Host : localhost:42069       \r\n\r\n")
