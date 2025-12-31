@@ -17,13 +17,15 @@ type requestState int
 
 const (
 	requestStateInitialized    requestState = iota // 0
-	requestStateDone                               // 1
-	requestStateParsingHeaders                     // 3
+	requestStateParsingHeaders                     // 1
+	requestStateParsingBody                        // 2
+	requestStateDone                               // 3
 )
 
 type Request struct {
 	RequestLine RequestLine
 	Headers     headers.Headers
+	Body        []byte
 	state       requestState
 }
 
@@ -107,10 +109,12 @@ func (r *Request) parseSingle(data []byte) (int, error) {
 			return 0, err
 		}
 		if done {
-			r.state = requestStateDone
+			r.state = requestStateParsingBody
 			return n, nil
 		}
 		return n, nil
+	case requestStateParsingBody:
+		return 0, fmt.Errorf("error: body parsing not yet implemented")
 	case requestStateDone:
 		return 0, fmt.Errorf("error: trying to read data in a done state")
 	}
