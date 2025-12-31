@@ -33,6 +33,12 @@ func init() {
 func (h Headers) Parse(data []byte) (n int, done bool, err error) {
 	crlf := []byte("\r\n")
 
+	isFirst := bytes.HasPrefix(data, crlf)
+	if isFirst {
+		// empty line - end of headers
+		return len(crlf), true, nil
+	}
+
 	last := bytes.LastIndex(data, crlf)
 	if last == -1 {
 		// no complete field-line in data
