@@ -38,20 +38,30 @@ func RequestFromReader(reader io.Reader) (*Request, error) {
 		state:   requestStateInitialized,
 		Headers: headers.NewHeaders(),
 	}
-	buffer := make([]byte, bufferSize, bufferSize)
+	buffer := make([]byte, bufferSize)
 	readToIndex := 0
 
 	for req.state != requestStateDone {
-		numBytesRead, err := reader.Read(buffer[len(buffer):cap(buffer)])
-		readToIndex += numBytesRead
+		// Ensure buffer has enough capacity for the next read
+		if cap(buffer)-readToIndex < bufferSize {
+			buffer = slices.Grow(buffer, cap(buffer)*2)
+		}
+		// Extend buffer to full capacity for reading
+		if len(buffer) < cap(buffer) {
+			buffer = buffer[:cap(buffer)]
+		}
+		// Read into the unused portion of the buffer
+		numBytesRead, err := reader.Read(buffer[readToIndex:])
 		if numBytesRead > 0 {
+			readToIndex += numBytesRead
 			// always process the n > 0 bytes returned before considering the error err
 			numBytesParsed, err := req.parse(buffer[:readToIndex])
 			if numBytesParsed > 0 {
 				copy(buffer, buffer[numBytesParsed:readToIndex])
 				readToIndex -= numBytesParsed
-				buffer = buffer[:readToIndex]
 			}
+			// shrink buffer to valid bytes
+			buffer = buffer[:readToIndex]
 			if err != nil {
 				return req, err
 			}
@@ -63,13 +73,6 @@ func RequestFromReader(reader io.Reader) (*Request, error) {
 			}
 			return nil, err
 		}
-
-		if cap(buffer)-len(buffer) < bufferSize {
-			buffer = slices.Grow(buffer, cap(buffer)*2) // grow the buffer capacity
-
-		}
-		// set length to full capacity (reader only reads len(p)
-		buffer = buffer[:readToIndex] // shrink slice to valid bytes
 	}
 	return req, nil
 }
