@@ -38,6 +38,9 @@ func main() {
 			fmt.Printf("- %s: %s\n", name, values)
 		}
 
+		fmt.Println("Body:")
+		fmt.Println(string(r.Body))
+
 		fmt.Fprintln(os.Stderr, "--CONNECTION CLOSED--")
 	}
 }

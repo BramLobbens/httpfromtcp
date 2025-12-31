@@ -41,7 +41,7 @@ func (h Headers) Parse(data []byte) (n int, done bool, err error) {
 	startsWithCrlf := bytes.HasPrefix(data, crlf)
 	// check for end of headers if at start
 	if startsWithCrlf {
-		// empty line - end of headers
+		// empty line - end of content
 		return len(crlf), true, nil
 	}
 
@@ -87,8 +87,8 @@ func (h Headers) Parse(data []byte) (n int, done bool, err error) {
 		numBytesParsed += len(line) + len(crlf)
 	}
 
-	isHeaderEnd := bytes.Index(data, []byte("\r\n\r\n")) != -1
-	return numBytesParsed, isHeaderEnd, nil
+	done = bytes.Index(data, []byte("\r\n\r\n")) != -1
+	return numBytesParsed, done, nil
 }
 
 func isFieldNameValid(fieldName string) bool {
