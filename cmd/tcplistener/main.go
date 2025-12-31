@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"os"
 
 	"github.com/BramLobbens/httpfromtcp/internal/request"
 )
@@ -21,7 +22,7 @@ func main() {
 		if err != nil {
 			log.Fatal(err)
 		}
-		fmt.Println("--CONNECTION ESTABLISHED--")
+		fmt.Fprintln(os.Stderr, "--CONNECTION ESTABLISHED--")
 
 		r, err := request.RequestFromReader(conn)
 		if err != nil {
@@ -32,6 +33,11 @@ func main() {
 		fmt.Printf("- Target: %s\n", r.RequestLine.RequestTarget)
 		fmt.Printf("- Version: %s\n", r.RequestLine.HttpVersion)
 
-		fmt.Println("--CONNECTION CLOSED--")
+		fmt.Println("Headers:")
+		for name, values := range r.Headers {
+			fmt.Printf("- %s: %s\n", name, values)
+		}
+
+		fmt.Fprintln(os.Stderr, "--CONNECTION CLOSED--")
 	}
 }
