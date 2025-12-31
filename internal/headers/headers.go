@@ -12,6 +12,11 @@ func NewHeaders() Headers {
 	return make(Headers)
 }
 
+func (h Headers) Get(key string) (string, bool) {
+	val, ok := h[strings.ToLower(key)]
+	return val, ok
+}
+
 var isTokenChar = [256]bool{
 	'!': true, '#': true, '$': true, '%': true, '&': true,
 	'\'': true, '*': true, '+': true, '-': true, '.': true,
@@ -33,14 +38,15 @@ func init() {
 func (h Headers) Parse(data []byte) (n int, done bool, err error) {
 	crlf := []byte("\r\n")
 
-	isFirst := bytes.HasPrefix(data, crlf)
-	if isFirst {
+	startsWithCrlf := bytes.HasPrefix(data, crlf)
+	// check for end of headers if at start
+	if startsWithCrlf {
 		// empty line - end of headers
 		return len(crlf), true, nil
 	}
 
-	last := bytes.LastIndex(data, crlf)
-	if last == -1 {
+	fieldLineEnd := bytes.LastIndex(data, crlf)
+	if fieldLineEnd == -1 {
 		// no complete field-line in data
 		return 0, false, nil
 	}
@@ -81,7 +87,8 @@ func (h Headers) Parse(data []byte) (n int, done bool, err error) {
 		numBytesParsed += len(line) + len(crlf)
 	}
 
-	return numBytesParsed, false, nil
+	isHeaderEnd := bytes.Index(data, []byte("\r\n\r\n")) != -1
+	return numBytesParsed, isHeaderEnd, nil
 }
 
 func isFieldNameValid(fieldName string) bool {

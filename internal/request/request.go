@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/BramLobbens/httpfromtcp/internal/headers"
@@ -70,6 +71,9 @@ func RequestFromReader(reader io.Reader) (*Request, error) {
 		}
 		if err != nil {
 			if errors.Is(err, io.EOF) {
+				if req.state != requestStateDone {
+					return nil, fmt.Errorf("unexpected end of input")
+				}
 				req.state = requestStateDone // end of stream or data
 				break
 			}
@@ -114,7 +118,14 @@ func (r *Request) parseSingle(data []byte) (int, error) {
 		}
 		return n, nil
 	case requestStateParsingBody:
-		return 0, fmt.Errorf("error: body parsing not yet implemented")
+		n, err, done := r.parseBody(data)
+		if err != nil {
+			return 0, err
+		}
+		if done {
+			r.state = requestStateDone
+		}
+		return n, nil
 	case requestStateDone:
 		return 0, fmt.Errorf("error: trying to read data in a done state")
 	}
@@ -168,4 +179,23 @@ func (rl *RequestLine) validateAndSetRequestLineParts(parts []string) error {
 	rl.HttpVersion = version
 
 	return nil
+}
+
+func (r *Request) parseBody(data []byte) (int, error, bool) {
+	contentLength, found := r.Headers.Get("content-length")
+	if !found || contentLength == "0" {
+		// no body present
+		return 0, nil, true
+	}
+
+	dataLength := len(data)
+	if cl, _ := strconv.Atoi(contentLength); dataLength > cl {
+		return 0, fmt.Errorf("more data received than specified in content-length header"), false
+	} else if cl == dataLength {
+		// body complete
+		r.Body = data
+		return len(r.Body), nil, true
+	}
+
+	return 0, nil, false
 }
