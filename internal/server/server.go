@@ -17,7 +17,8 @@ func Serve(port int) (*Server, error) {
 		state: atomic.Bool{},
 	}
 	server.state.Store(true)
-	listener, err := net.Listen("tcp", ":"+strconv.Itoa(port))
+	address := net.JoinHostPort("", strconv.Itoa(port))
+	listener, err := net.Listen("tcp", address)
 	if err != nil {
 		return nil, err
 	}
