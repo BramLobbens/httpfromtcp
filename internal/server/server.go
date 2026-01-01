@@ -4,17 +4,19 @@ import (
 	"log"
 	"net"
 	"strconv"
+	"sync/atomic"
 )
 
 type Server struct {
-	state    bool // 0 - open, 1 - closed
+	state    atomic.Bool
 	listener net.Listener
 }
 
 func Serve(port int) (*Server, error) {
 	server := &Server{
-		state: true, // open
+		state: atomic.Bool{},
 	}
+	server.state.Store(true)
 	listener, err := net.Listen("tcp", ":"+strconv.Itoa(port))
 	if err != nil {
 		return nil, err
@@ -25,18 +27,19 @@ func Serve(port int) (*Server, error) {
 }
 
 func (s *Server) Close() error {
-	err := s.listener.Close()
-	if err != nil {
-		return err
-	}
-	return nil
+	s.state.Store(false)
+	return s.listener.Close()
 }
 
 func (s *Server) listen() {
-	for s.state { // while open
+	for s.state.Load() {
 		conn, err := s.listener.Accept()
 		if err != nil {
-			log.Fatal(err)
+			if !s.state.Load() {
+				return
+			}
+			log.Printf("Error accepting connection: %v", err)
+			continue
 		}
 		go s.handle(conn)
 	}
