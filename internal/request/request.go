@@ -52,9 +52,6 @@ func RequestFromReader(reader io.Reader) (*Request, error) {
 			buffer = newBuffer
 		}
 
-		fmt.Fprintf(os.Stderr, "DEBUG: readToIndex=%d, len(buffer)=%d, cap(buffer)=%d, buffer[readToIndex:] len=%d\n",
-			readToIndex, len(buffer), cap(buffer), len(buffer[readToIndex:]))
-
 		numBytesRead, err := reader.Read(buffer[readToIndex:])
 		if numBytesRead > 0 {
 			readToIndex += numBytesRead

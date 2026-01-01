@@ -54,8 +54,9 @@ func (h Headers) Parse(data []byte) (n int, done bool, err error) {
 	fieldLines := bytes.Split(data, crlf)
 	numBytesParsed := 0
 
-	for _, line := range fieldLines {
-		if len(line) == 0 {
+	for i, line := range fieldLines {
+		// will limit to only first line where we are sure there's a line-break match
+		if i > 0 || len(line) == 0 {
 			break
 		}
 
