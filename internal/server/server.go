@@ -12,17 +12,30 @@ type Server struct {
 	listener net.Listener
 }
 
-func Serve(port int) (*Server, error) {
-	server := &Server{
-		state: atomic.Bool{},
-	}
-	server.state.Store(true)
-	address := net.JoinHostPort("", strconv.Itoa(port))
+func server(address string, options ...func(*Server)) (*Server, error) {
 	listener, err := net.Listen("tcp", address)
 	if err != nil {
 		return nil, err
 	}
-	server.listener = listener
+	server := &Server{
+		state:    atomic.Bool{},
+		listener: listener,
+	}
+
+	for _, option := range options {
+		option(server)
+	}
+
+	return server, nil
+}
+
+func Serve(port int) (*Server, error) {
+	address := net.JoinHostPort("", strconv.Itoa(port))
+	server, err := server(address)
+	if err != nil {
+		return nil, err
+	}
+	server.state.Store(true)
 	go server.listen()
 	return server, nil
 }
