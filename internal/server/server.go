@@ -60,15 +60,15 @@ func (s *Server) listen() {
 }
 
 func (s *Server) handle(conn net.Conn) {
+	defer conn.Close()
+
 	response := "HTTP/1.1 200 OK\r\n" +
 		"Content-Type: text/plain\r\n" +
 		"Content-Length: 13\r\n" +
 		"\r\n" +
 		"Hello World!\n"
 
-	conn.Write([]byte(response))
-	err := s.Close()
-	if err != nil {
-		log.Fatal(err)
+	if _, err := conn.Write([]byte(response)); err != nil {
+		log.Printf("Error writing response: %v", err)
 	}
 }
