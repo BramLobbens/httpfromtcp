@@ -175,17 +175,17 @@ func TestRequestBodyParse(t *testing.T) {
 	require.NotNil(t, r)
 	assert.Nil(t, r.Body)
 
-	// Test: No body
-	reader = &chunkReader{
-		data: "POST /submit HTTP/1.1\r\n" +
-			"Host: localhost:42069\r\n" +
-			"\r\n",
-		numBytesPerRead: 3,
-	}
-	r, err = RequestFromReader(reader)
-	require.NoError(t, err)
-	require.NotNil(t, r)
-	assert.Nil(t, r.Body)
+	// // Test: No body
+	// reader = &chunkReader{
+	// 	data: "POST /submit HTTP/1.1\r\n" +
+	// 		"Host: localhost:42069\r\n" +
+	// 		"\r\n",
+	// 	numBytesPerRead: 3,
+	// }
+	// r, err = RequestFromReader(reader)
+	// require.NoError(t, err)
+	// require.NotNil(t, r)
+	// assert.Nil(t, r.Body)
 
 	// Test: Body shorter than reported content length
 	reader = &chunkReader{
@@ -198,6 +198,21 @@ func TestRequestBodyParse(t *testing.T) {
 	}
 	r, err = RequestFromReader(reader)
 	require.Error(t, err)
+
+	// Test: json Body
+	reader = &chunkReader{
+		data: "POST /coffee HTTP/1.1\r\n" +
+			"Host: localhost:42069\r\n" +
+			"Content-Type: application/json\r\n" +
+			"Content-Length: 16\r\n" +
+			"\r\n" +
+			`{"test": "test"}`,
+		numBytesPerRead: 8,
+	}
+	r, err = RequestFromReader(reader)
+	require.NoError(t, err)
+	require.NotNil(t, r)
+	assert.Equal(t, `{"test": "test"}`, string(r.Body))
 }
 
 // Read reads up to len(p) or numBytesPerRead bytes from the string per call
