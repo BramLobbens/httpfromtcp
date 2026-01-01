@@ -44,14 +44,6 @@ func main() {
 		fmt.Println("Body:")
 		fmt.Println(string(r.Body))
 
-		response := "HTTP/1.1 200 OK\r\n" +
-			"Content-Type: text/plain\r\n" +
-			"Content-Length: 2\r\n" +
-			"Connection: close\r\n" +
-			"\r\n" +
-			"OK"
-		conn.Write([]byte(response))
-
 		conn.Close()
 		fmt.Fprintln(os.Stderr, "--CONNECTION CLOSED--")
 	}
