@@ -26,8 +26,11 @@ func main() {
 
 		r, err := request.RequestFromReader(conn)
 		if err != nil {
-			log.Fatal(err)
+			log.Printf("Error reading request: %v", err)
+			conn.Close()
+			continue // Don't fatal, just continue to next connection
 		}
+
 		fmt.Println("Request line:")
 		fmt.Printf("- Method: %s\n", r.RequestLine.Method)
 		fmt.Printf("- Target: %s\n", r.RequestLine.RequestTarget)
@@ -41,6 +44,15 @@ func main() {
 		fmt.Println("Body:")
 		fmt.Println(string(r.Body))
 
+		response := "HTTP/1.1 200 OK\r\n" +
+			"Content-Type: text/plain\r\n" +
+			"Content-Length: 2\r\n" +
+			"Connection: close\r\n" +
+			"\r\n" +
+			"OK"
+		conn.Write([]byte(response))
+
+		conn.Close()
 		fmt.Fprintln(os.Stderr, "--CONNECTION CLOSED--")
 	}
 }

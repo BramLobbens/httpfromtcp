@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"slices"
+	"os"
 	"strconv"
 	"strings"
 
@@ -45,26 +45,34 @@ func RequestFromReader(reader io.Reader) (*Request, error) {
 	readToIndex := 0
 
 	for req.state != requestStateDone {
-		// Ensure buffer has enough capacity for the next read
-		if cap(buffer)-readToIndex < bufferSize {
-			buffer = slices.Grow(buffer, cap(buffer)*2)
+		if readToIndex >= len(buffer) {
+			// Grow buffer - double the capacity
+			newBuffer := make([]byte, cap(buffer)*2)
+			copy(newBuffer, buffer)
+			buffer = newBuffer
 		}
-		// Extend buffer to full capacity for reading
-		if len(buffer) < cap(buffer) {
-			buffer = buffer[:cap(buffer)]
-		}
-		// Read into the unused portion of the buffer
+
+		fmt.Fprintf(os.Stderr, "DEBUG: readToIndex=%d, len(buffer)=%d, cap(buffer)=%d, buffer[readToIndex:] len=%d\n",
+			readToIndex, len(buffer), cap(buffer), len(buffer[readToIndex:]))
+
 		numBytesRead, err := reader.Read(buffer[readToIndex:])
 		if numBytesRead > 0 {
 			readToIndex += numBytesRead
+		}
+		if readToIndex > 0 {
 			// always process the n > 0 bytes returned before considering the error err
 			numBytesParsed, err := req.parse(buffer[:readToIndex])
 			if numBytesParsed > 0 {
+				// Copy remaining data to the start
+				remainingBytes := readToIndex - numBytesParsed
 				copy(buffer, buffer[numBytesParsed:readToIndex])
-				readToIndex -= numBytesParsed
+				readToIndex = remainingBytes
+
+				// Clear the rest of the buffer to avoid confusion
+				for i := readToIndex; i < len(buffer); i++ {
+					buffer[i] = 0
+				}
 			}
-			// shrink buffer to valid bytes
-			buffer = buffer[:readToIndex]
 			if err != nil {
 				return req, err
 			}
@@ -74,7 +82,6 @@ func RequestFromReader(reader io.Reader) (*Request, error) {
 				if req.state != requestStateDone {
 					return nil, fmt.Errorf("unexpected end of input")
 				}
-				req.state = requestStateDone // end of stream or data
 				break
 			}
 			return nil, err
@@ -191,9 +198,10 @@ func (r *Request) parseBody(data []byte) (int, error, bool) {
 	dataLength := len(data)
 	if cl, _ := strconv.Atoi(contentLength); dataLength > cl {
 		return 0, fmt.Errorf("more data received than specified in content-length header"), false
-	} else if cl == dataLength {
-		// body complete
-		r.Body = data
+	} else if dataLength == cl {
+		// body complete - attention data is a slice and we're setting Body []byte, so copy the data!
+		r.Body = make([]byte, len(data))
+		copy(r.Body, data)
 		return len(r.Body), nil, true
 	}
 

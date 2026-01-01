@@ -88,6 +88,9 @@ func (h Headers) Parse(data []byte) (n int, done bool, err error) {
 	}
 
 	done = bytes.Index(data, []byte("\r\n\r\n")) != -1
+	if done {
+		numBytesParsed += len(crlf) // account for final CRLF
+	}
 	return numBytesParsed, done, nil
 }
 
